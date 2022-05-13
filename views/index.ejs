@@ -1,0 +1,620 @@
+<html>
+<head>
+    <title>GetAhead</title>
+
+    <script src="/jq/external/jquery/jquery.js"></script>
+    <script src="/jq/jquery-ui.js"></script>
+    <script type="text/javascript">
+
+$(()=> { 
+     
+let messageBox = (message) => {
+
+    // Create a flash message
+
+    let box =  $('.message-box');
+
+    box.html(message);
+    box.fadeIn(150)
+    box.fadeOut(1400)
+}
+
+
+let loadPlans = (id, month, day) => {
+
+    // Function for loading and changing plans in dialog box
+
+    let dataParam = { a: 'ret', b: id }
+    let dataFinal = JSON.stringify(dataParam)
+    let str = "";
+
+    $('.diag-center').html('');
+
+    if(id) {
+        $.ajax({ url: 'http://localhost:3000/res/' + dataFinal, data: 'json', withCredentials:'true'}).done(function(data) {
+
+            let plans = JSON.parse(data)
+
+            plans[0].plansData.forEach((p,index) => {
+
+                noteDate = new Date(p.time);
+                noteTime = noteDate.getHours() + " : " + noteDate.getMinutes();
+            
+                str = str + "<div class='diag-note'>" + "<div class='diag-note-time'>" + noteTime + "</div>"  
+                + p.notes + "<div  planId='" + id + "' index='" + index + "'' class='diag-delete-note'> Delete </div>" +  "</div>"
+
+                $('.diag-center').html(str)
+
+                $('.diag-delete-note').click(function() {
+
+                        let planId = $(this).attr('planId');
+                        let dataParam = { a: 'del', b: planId, c: $(this).attr('index') }
+                        let dataFinal = JSON.stringify(dataParam)
+
+                        console.log('hrdhd')
+
+                        $.ajax({ url: 'http://localhost:3000/res/' + dataFinal, data: 'json', withCredentials:'true'}).done(function(data) { });
+
+                        if(plans[0].plansData.length==1) {
+                            loadPlans(null, month,day);
+                        } else {
+                            loadPlans(planId, month,day);
+                        }
+
+                        messageBox('Plan Deleted')
+                        refreshDay(planId)
+
+                })
+                $('.diag-center').prepend('<div class="diag-edit">Make a plan</div>');
+
+                $('.diag-edit').one("click",function(){
+
+                    $(this).html("<textarea class='makePlan'>Today's plan is</textarea><div class='time-pick-box'></div><button class='createPlan'>Make Plan</button>")
+
+                    appendTimePicker($('.time-pick-box'));
+
+
+                        $('.createPlan').click(function() {
+
+                            let hours = Number($('.time-pick.new .hours').text());
+                            let minutes = Number($('.time-pick.new .minutes').text());
+
+                            let dataParam = { a: 'ins', b: id, c: $('.makePlan').val(), d: month, e: day, f: hours, g: minutes };
+                            let dataFinal = encodeURIComponent(JSON.stringify(dataParam));
+                            let str = "";
+
+                            $.ajax({ url: 'http://localhost:3000/res/' + dataFinal, data: 'json', withCredentials:'true'}).done(function(data) {
+
+                                messageBox("Plan created")
+                                loadPlans(id, month,day);
+                                refreshDay(id);
+                            })
+                        })
+                    })
+
+
+           });
+             
+        })
+
+ 
+        } else {
+
+                $('.diag-center').prepend('<div class="diag-edit">Make a plan</div>');
+
+                $('.diag-edit').one("click",function(){
+                    
+                    $(this).html("<textarea class='makePlan'>Today's plan is</textarea><div class='time-pick-box'></div><button class='createPlan'>Make Plan</button>")
+
+                    appendTimePicker($('.time-pick-box'));
+        
+                    $('.createPlan').click(function() {
+
+                        let hours = Number($('.time-pick.new .hours').text());
+                        let minutes = Number($('.time-pick.new .minutes').text());
+
+                        let dataParam = { a: 'ins', b: null, c: $('.makePlan').val(), d: month, e: day, f: hours, g: minutes }
+                        let dataFinal = encodeURIComponent(JSON.stringify(dataParam));
+                        let str = "";
+
+                        
+                        $.ajax({ url: 'http://localhost:3000/res/' + dataFinal, data: 'json', withCredentials:'true'}).done(function(data) {
+
+                            messageBox("Plan created")
+                            loadPlans(data, month,day);
+
+                            $(".day[day='" + day + "']").attr('planId', data);
+                            refreshDay(data);
+                        })
+                    })
+                })
+        }
+}
+ 
+let refreshDay = (planId) => {
+
+    // Refreshes an individual day
+
+    let day = dayFromPlanId(planId)
+    let dataParam = { a: 'ret', b: planId   }
+    let dataFinal = encodeURIComponent(JSON.stringify(dataParam));
+
+    $.ajax({ url: 'http://localhost:3000/res/' + dataFinal, data: 'json', withCredentials:'true' }).done((data)=>{
+
+        let plans = JSON.parse(data)[0].plansData;
+        let container = day.children('.notes')
+
+        container.html('');
+
+            for(p of plans) {
+
+                let note = document.createElement('div')
+                note.classList.add('note');
+                note.innerHTML = p.notes;
+                container.append(note);
+            }
+    })
+
+}
+
+let appendTimePicker = (parent) => {
+    
+    // Appends time picker to diag 
+              
+    let timePick =  $('.time-pick').clone();
+    timePick.addClass('new');
+    timePick.css('display', 'block')
+    parent.append(timePick);
+
+    var hoursDiv = $('.time-pick.new .hours');
+    var minutesDiv = $('.time-pick.new .minutes');
+
+        $('.time-scroll.up-hours').click(()=>{
+
+            current = Number(hoursDiv.text());
+            if(current < 23) hoursDiv.html(current + 1)
+        })
+
+        $('.time-scroll.down-hours').click(()=>{
+
+            current = Number(hoursDiv.text());
+            if(current > 0) hoursDiv.html(current - 1)
+        })
+
+        $('.time-scroll.up-minutes').click(()=>{
+
+            console.log(minutesDiv.text())
+            current = Number(minutesDiv.text());
+            if(current < 60) minutesDiv.html(current + 1)
+        })
+
+        $('.time-scroll.down-minutes').click(()=>{
+
+            current = Number(minutesDiv.text());
+            if(current > 0) minutesDiv.html(current - 1)
+        })
+}
+
+let dayFromPlanId = (planId) => {
+
+    let day = $(".day[planId='" + planId + "']");
+    return day
+}
+
+    // Code for managing misc UI events
+
+    $('.day').click(function(){
+ 
+        let planId = $(this).attr('planId')
+        let month = $(this).attr('month')
+        let day = $(this).attr('day')
+ 
+        loadPlans(planId, month, day)
+
+        $('.diag-plans').attr('planId', planId);
+        $('.diag-backdrop').css('display','block');
+        $('.diag-plans').css('display','block');
+    })
+
+    $('.diag-backdrop').click(()=>{
+     
+        $('.diag-backdrop').css('display','none');
+        $('.diag-plans').css('display','none');
+    })
+
+    $('.left-scroll').click(()=>{
+
+        let month = new Number();
+        month = Number($('.day').eq(0).attr('month')) - 1;
+
+        window.location.replace('/month/' + month)
+
+    })
+
+    $('.right-scroll').click(()=>{
+
+        let month = new Number();
+        month = Number($('.day').eq(0).attr('month')) + 1;
+
+        window.location.replace('/month/' + month)
+
+    })
+
+
+
+})
+
+</script>
+
+    <style>
+
+        .diag-edit {
+
+            width: 96%;
+            padding: 1%;
+            margin: 2% 1%;
+            border-radius: 2px;
+            color:#111;
+            background-color: rgb(144, 165, 223);
+        }
+
+        textarea.makePlan {
+
+            width: 96%;
+            height: 16%;
+            padding: 1%;
+            margin: 2% 1%;
+            border-radius: 2px;
+            color:#111;
+            background-color: rgb(144, 165, 223);
+        }
+
+        button.createPlan {
+
+            width: 92px;
+            padding: 1%;
+            margin: 2% 1%;
+            border-radius: 2px;
+            color:#111;
+            background-color: rgb(196, 206, 233);
+            border:none;
+        }
+
+        .diag-plans {
+
+            width: 70vmin;
+            height: min(70%, 600px);
+            margin-left: calc((100vw - 70vmin)/2);
+            margin-right:calc((100vw - 70vmin)/2);
+            margin-top: 10vw;
+            color:rgb(163, 167, 172);
+            background-color: rgb(41, 41, 40);
+ 
+                border-radius: 5px;                 
+                z-index: 10;
+                position:fixed;
+                display:none;
+        }
+
+        .diag-backdrop {
+
+            width:100%;
+            height:100%;
+            opacity: 0.65;
+            background-color: rgb(73, 75, 75);
+
+                position:fixed;
+                z-index: 7;
+                display:none;
+        }
+        .diag-title {
+
+            margin: 1% 0;
+            text-align: center;
+        }
+
+        .diag-center {
+
+            width:94%;
+            height:82%;
+            margin: 4% 3% 14% 3%;
+            padding: 1% 0;
+            background-color: rgb(49, 48, 48);
+        }
+
+        .diag-note {
+
+            font-size: 18px;
+            width: 96%;
+            padding: 1%;
+            margin: 2% 1%;
+            border-radius: 2px;
+            color:#111;
+            background-color: rgb(144, 165, 223);
+        }
+
+        .diag-note-time {
+
+            padding: 1% 0;
+            font-size: 20px;
+        }
+        .diag-delete-note {
+
+            color:rgb(210, 235, 235);
+            padding: 1% 1%;
+            font-size: 20px;
+            text-align: right;
+        }
+
+        html,body {
+
+            font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif; 
+            margin:0;
+            padding:0;
+            background-color: rgb(152, 160, 172);
+        }
+
+        div.center {
+
+            height:100%;
+            padding-right:min(18%,200px);
+            padding-left:min(18%,200px);
+        }
+ 
+        div.calendarBox {
+
+            width:100%;
+            padding-top:1%;
+            column-gap: .7%;
+            display:grid;
+            grid-template-columns: repeat(7, minmax(130px, 14%));
+            grid-template-rows: repeat(6, minmax(250px, 30%));
+        }
+
+        div.day {
+           
+            width:  80%;
+            height: 198px;
+            padding: 3px;
+            margin:3px;
+            overflow:hidden;
+            border:3px solid rgb(75, 76, 77);
+            background-color: rgb(143, 150, 160);        
+        }
+
+        div.day:hover {
+ 
+           background-color: rgb(129, 138, 146);
+           cursor:pointer;        
+       }
+  
+        div.pre {
+
+            width:  80%;
+            height: 80%;
+            padding: 3px;
+            margin:3px;
+            background-color: rgb(122, 122, 131);
+            border:3px solid rgb(90, 90, 97)
+        }
+
+        div.date {
+
+            color:rgb(175, 219, 205);
+            font-size:14px;
+            padding:7px;
+            background-color: rgb(59, 60, 63)
+        }
+
+        div.note {
+
+            margin:4px 2px;
+            padding:3px;
+            border-radius: 3px;
+            overflow:hidden;
+            background-color: rgb(145, 201, 231);
+            opacity:0.9;
+        }
+        div.centerHead {
+
+            height:70px;
+            width:100%;
+            padding-top: 4%;
+            text-align: center;
+        }
+
+        div.currentTime {
+
+            margin: 0 auto;
+            padding: 10px;
+            color:rgb(168, 179, 180);
+            font-size:16px;
+            background-color: rgb(95, 89, 89);
+        }
+
+        div.currentMonth {
+
+            margin: 9px 0;
+            color:rgb(244, 247, 234);
+            font-size:50px;
+            text-align: center;
+        }
+
+        .message-box {
+
+            width:100%;
+            height: 30px;
+            padding: 1%;
+            font-size: 26px;
+            background-color: rgb(137, 192, 243);
+            text-align: center;
+            position:fixed;
+            bottom:0;
+                display:none;
+        }
+
+        .right-scroll {
+            
+            width: 28px;
+            height:100%;
+            position:fixed;
+            right: 0;
+            opacity:0.1;
+            background-color: rgb(199, 204, 204);
+        }
+
+        .left-scroll {
+
+            width: 28px;
+            height:100%;
+            opacity:0.1;
+            background-color: rgb(199, 204, 204);
+            position:fixed;
+            left: 0;
+        }
+
+        .left-scroll:hover, .right-scroll:hover {
+            opacity:0.60;
+            cursor:pointer; 
+        }
+
+        .time-pick {
+        
+            width: min(180px, 22%);
+            height: min(130px, auto);
+            margin: 1% 0;
+            text-align: center;
+            opacity: 0.8;
+            background-color: rgb(168, 164, 184);
+            display:none;
+        }
+
+        .time-pick .hours, .time-pick .minutes {
+
+            width: 44%;
+            height:auto;
+            margin: 1% auto;
+            font-size: 50px;
+            background-color:rgb(100, 100, 97);
+            display: inline-block;
+        }
+
+        .time-scroll {
+            
+            width:44%;
+            height:2%;
+            opacity: 0.8;
+            background-color: rgb(151, 150, 150);
+            display: inline-block;
+        }
+
+        .time-scroll:hover {
+
+            background-color: rgb(192, 197, 197);
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+<!---  Plan Edit Box  -->
+
+<div class="diag-backdrop"></div>
+<div class="diag-plans" title="Today's Plans" planId="">
+
+    <div class = "diag-title">Today's Plans</div>
+        <div class="diag-center">             
+        </div>
+</div>
+
+
+<!---  Message Bar  -->
+
+<div class="message-box"></div>
+
+
+<!--  Right and Left scroll buttons  -->
+
+<div class="right-scroll"></div>
+<div class="left-scroll"></div>
+
+
+<div class="head">
+</div>
+
+<div class="centerHead">
+    <div class = "currentTime">
+        <%- otherData.currentTime %>
+    </div>
+ 
+</div>
+
+
+<!-- Time pick code  -->
+
+<div class="time-pick">  
+    <div class = "time-scroll up-hours"></div>
+    <div class = "time-scroll up-minutes"> </div>
+        <div class = "hours"> 12</div>
+        <div class = "minutes">30</div>
+    <div class = "time-scroll down-hours"></div>
+    <div class = "time-scroll down-minutes"></div>
+
+</div>
+
+
+<!---  This code runs upon page load and renders the initial calendar  -->
+
+
+<div class="center">
+
+
+    <div class="currentMonth">
+        <%- otherData.currentMonth %>
+    </div>
+
+    <div class="calendarBox">
+
+        <% if(planData[50]) { %>
+            <% planData[50].forEach((data) => {  %>
+                <div class="pre">
+                    <%- data %>
+                </div>
+            <% }) %>
+        <% } %>
+
+
+        <% planData.forEach((data, i) => { %>
+
+            <div class="day" planId="<%- data.id %>" month="<%- otherData.currentMonthNumber %>" day="<%- i %>">
+
+                <div class="date"><%-  i  %>  </div>
+                <div class = "notes">
+
+                    <% if(data.plansData) {   %>
+                        
+                            <%  data.plansData.forEach((dayPlans) =>  {   %>
+
+                                <% if(dayPlans) { %>
+                                <div class = "note"><%-  dayPlans.notes  %></div>
+                                <% } %>
+
+                            <%    })   %>
+                    <%   }   %>
+                
+                </div>
+            </div>
+            <% }) %>
+
+    </div>
+</div>
+
+
+</body>
+
+
+
+</html>
+ 
